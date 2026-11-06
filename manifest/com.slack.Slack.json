@@ -1,0 +1,46 @@
+{
+  "id": "@APP_ID@",
+  "runtime": "@RUNTIME@",
+  "runtime-version": "@RUNTIME_VERSION@",
+  "sdk": "@RUNTIME_SDK@",
+  "sdk-version": "@RUNTIME_VERSION@",
+  "name": "Slack",
+  "icon": "slack",
+  "command": "slack",
+  "appstream": {
+    "name": "Slack",
+    "summary": "Slack Desktop",
+    "description": "Make work life simpler, more pleasant and more productive.\n\nSlack is the productivity platform that empowers everyone with no-code automation and AI, makes search and knowledge sharing seamless, and keeps teams connected and engaged.",
+    "categories": ["Network", "InstantMessaging"],
+    "keywords": ["chat", "team", "collaboration", "messaging"]
+  },
+  "finish-args": [
+    "--share=ipc",
+    "--share=network",
+    "--socket=wayland",
+    "--socket=x11",
+    "--socket=session-bus",
+    "--socket=pulseaudio",
+    "--device=dri",
+    "--filesystem=home",
+    "--talk-name=org.freedesktop.secrets",
+    "--talk-name=org.freedesktop.Notifications",
+    "--talk-name=org.freedesktop.ScreenSaver",
+    "--talk-name=org.kde.StatusNotifierWatcher",
+    "--env=SLACK_FLATPAK=1"
+  ],
+  "modules": [
+    {
+      "name": "slack",
+      "buildsystem": "simple",
+      "sources": [
+        { "type": "file", "path": "slack-arm64.tar.xz" },
+        { "type": "file", "path": "slack-install.sh" }
+      ],
+      "build-commands": [
+        "tar xJf slack-arm64.tar.xz --no-same-owner",
+        "sh slack-install.sh"
+      ]
+    }
+  ]
+}

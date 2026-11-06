@@ -1,0 +1,118 @@
+# Slack Desktop for Linux aarch64 — Flatpak
+
+A **self-contained Flatpak bundle** of Slack Desktop that runs natively on
+**aarch64 (arm64)** on any distro with Flatpak. Slack publishes the x86_64
+Flatpak; this project builds the **aarch64 complement**, using the official
+Slack package as the source of truth and Docker for a clean, reproducible build.
+
+The deliverable is a single file: `dist/com.slack.Slack.aarch64.flatpak`.
+
+## How it works
+
+```
+official Slack package (.deb/.rpm, x86_64)
+    │  native/01-fetch-slack.sh       extract + normalize the app tree
+    │  native/02-detect-versions.sh   read Electron + native-module versions
+    │  native/03-arm64-electron.sh    swap in the matching arm64 Electron
+    │  native/04-build-native.sh      build/fetch arm64 native modules
+    │  native/05-assemble.sh          package slack-<VER>-arm64.tar.xz
+    ▼
+dist/slack-<VER>-arm64.tar.xz   (intermediate payload)
+    │  manifest/ (org.gnome.Platform:51, zero build modules)
+    ▼
+dist/com.slack.Slack.aarch64.flatpak   (the deliverable)
+```
+
+All stages run inside Docker (see `Dockerfile.native`, `Dockerfile.flatpak`),
+so the host stays clean.
+
+### Native modules (aarch64)
+| Module | Source |
+|--------|--------|
+| `native-keymap` | built from public npm `native-keymap` via node-gyp |
+| `electron-native-auth` | built from public npm `electron-native-auth` |
+| `file-handler-info` | built from public npm `file-handler-info` |
+| `@tinyspeck/slack-desktop-utils` | arm64 prebuild from Slack's S3 |
+| `cf-prefs`, `registry-js`, `windows-focus-assist`, `macos-notification-state` | arm64 N-API stub (Linux no-ops) |
+
+### Base runtime: `org.gnome.Platform:51`
+Slack's Electron links GTK3, GLib, ATK/atspi, Cairo/Pango, X11, GBM, xkbcommon,
+udev, ALSA, NSS, CUPS, DBus and dlopens **libsecret** (keyring) and **libnotify**;
+its tray uses StatusNotifierItem (D-Bus). `org.gnome.Platform` ships all of these,
+so the app is a **pure file copy — zero build modules**. Flathub serves
+`org.gnome.Platform` for aarch64 (current branch **51**); the flatpak client pulls
+the aarch64 variant automatically.
+
+## Requirements (build host)
+- **Docker** on a **native aarch64** host (Raspberry Pi 5, Graviton, aarch64 VPS).
+  Cross-prototype on x86_64 with `BUILD_PLATFORM=linux/arm64` (QEMU, slow).
+- **Unprivileged user namespaces** enabled (flatpak-builder's bubblewrap sandbox):
+  on Debian/Ubuntu `sysctl kernel.unprivileged_userns_clone=1` + the container
+  seccomp/caps in `FLATPAK_DOCKER_FLAGS`.
+- **Outbound network**: Slack CDN, `github.com` (Electron),
+  `slack-desktop-native-prebuilds.s3.amazonaws.com`, `npmjs.com`, `dl.flathub.org`.
+- ~10 GB free disk.
+
+## Quick start
+```sh
+# 1) Download the official Slack x86_64 .deb/.rpm in a browser.
+# 2) Configure:
+cp .env.example .env
+$EDITOR .env        # set SLACK_VERSION + SLACK_SOURCE_FILE
+# 3) Build:
+./build.sh
+```
+
+Outputs in `dist/`:
+
+| File | What |
+|------|------|
+| `com.slack.Slack.aarch64.flatpak` | **the deliverable** — self-contained, install anywhere |
+| `slack-<VER>-arm64.tar.xz` | intermediate aarch64 payload |
+| `build-inputs.json` | versions + SHA-256 (reproducibility record) |
+
+Install on any machine with Flatpak:
+```sh
+flatpak install dist/com.slack.Slack.aarch64.flatpak
+flatpak run com.slack.Slack
+```
+
+## Updating to a new Slack version
+1. Download the new official `.deb`/`.rpm`.
+2. Set `SLACK_VERSION` + `SLACK_SOURCE_FILE` in `.env`.
+3. `./build.sh` — Electron, native-module, napi and S3-prebuild versions are
+   **auto-detected** from the package.
+
+## Configuration
+See `.env.example`. Key knobs:
+
+| Variable | Meaning |
+|----------|---------|
+| `SLACK_SOURCE_FILE` / `SLACK_SOURCE_URL` | the official package to build from |
+| `SLACK_APP_ID` | `com.slack.Slack` (default) or `com.slack.Slack.aarch64` |
+| `FLATPAK_RUNTIME` / `FLATPAK_RUNTIME_VERSION` | base (default `org.gnome.Platform/51`) |
+| `FLATPAK_SDK` | matching build base (default `org.gnome.Sdk`) |
+| `NATIVE_BASE_IMAGE` / `FLATPAK_BASE_IMAGE` | pinned build images (`node:24.22.2-trixie`, `debian:13.7`) |
+
+## Layout
+```
+build.sh                  # host orchestrator (drives Docker)
+build-flatpak.sh          # flatpak-builder driver (runs in the flatpak image)
+Dockerfile.native         # node + toolchain + X11/xkbfile headers
+Dockerfile.flatpak        # flatpak + flatpak-builder
+.env.example              # all knobs
+native/                   # 01-fetch → 02-detect → 03-electron → 04-native → 05-assemble (+ stubs/)
+manifest/                 # com.slack.Slack.json + slack-install.sh
+```
+
+## Known limitations
+- **Screen share** (Slack "Share Screen") depends on the Wayland/X11 screencast
+  portal — the least reliable sandboxed feature. Audio/video calls work.
+- **Tray** needs a StatusNotifierWatcher (GNOME "App Indicator" ext, KDE, Xfce…).
+- Building the Flatpak in Docker needs unprivileged user namespaces.
+
+## Troubleshooting
+- `could not obtain the Slack package` → set `SLACK_SOURCE_FILE` (Slack CDN 403s curl).
+- `org.gnome.Platform … not found` for aarch64 → confirm the aarch64 host + that
+  `dl.flathub.org` is reachable; Flathub serves the aarch64 runtime automatically.
+- flatpak-builder hangs in Docker → enable user namespaces + `FLATPAK_DOCKER_FLAGS`.

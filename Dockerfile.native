@@ -1,0 +1,32 @@
+# Native build stage: fetch the official Slack package, swap in the matching
+# arm64 Electron, rebuild the arm64 native Node modules, and assemble the
+# aarch64 payload (slack-<VER>-arm64.tar.xz).
+#
+# Arch-agnostic: on an aarch64 host this builds natively (fast); on x86_64 it
+# can run under QEMU via `docker build --platform linux/arm64` (slower).
+# Pinned full-version tag (Debian 13 "trixie") for reproducible builds.
+# Override with --build-arg BASE_IMAGE=... (e.g. an image@sha256: digest).
+ARG BASE_IMAGE=node:24.22.2-trixie
+FROM ${BASE_IMAGE}
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    # Force node-gyp source builds for prebuild-based native modules
+    npm_config_build_from_source=true \
+    npm_config_force_rebuild=true \
+    # Keep npm quiet + reproducible
+    npm_config_update_notifier=false
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        python3 \
+        libx11-dev libxkbfile-dev \
+        ca-certificates curl \
+        unzip xz-utils \
+        file \
+        libarchive-tools \
+        dpkg-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /work
+# The build scripts + stubs are bind-mounted by build.sh at /work/scripts.
+# (Nothing is COPY'd here on purpose — keep the image a clean toolchain.)

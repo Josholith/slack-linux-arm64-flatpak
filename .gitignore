@@ -1,0 +1,17 @@
+# Build outputs (large, regeneratable via ./build.sh)
+dist/
+*.flatpak
+!Dockerfile.flatpak
+
+# Docker / flatpak working dirs + caches
+.work/
+.npm-cache/
+.flatpak/
+.flatpak-cache/
+.flatpak-user/
+
+# local configuration (contains machine-specific paths)
+.env
+
+# editor / OS noise
+.DS_Store

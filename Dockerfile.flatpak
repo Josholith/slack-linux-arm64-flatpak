@@ -1,0 +1,20 @@
+# Flatpak stage: takes the aarch64 payload tarball (staged next to the manifest)
+# and builds a self-contained, portable `.flatpak` bundle with flatpak-builder.
+# Pinned full-version tag (Debian 13 "trixie") for reproducible builds.
+# Override with --build-arg BASE_IMAGE=... (e.g. an image@sha256: digest).
+ARG BASE_IMAGE=debian:13.7
+FROM ${BASE_IMAGE}
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        flatpak \
+        flatpak-builder \
+        ostree \
+        python3 \
+        ca-certificates \
+        curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /work
+# The manifest + payload tarball + build script are bind-mounted by build.sh at /work.
