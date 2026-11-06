@@ -14,11 +14,11 @@ else
   log "No local package staged ($SRC/slack-package) — attempting download"
   candidates=()
   [ -n "${SLACK_SOURCE_URL:-}" ] && candidates+=("$SLACK_SOURCE_URL")
-  # Best-effort Slack CDN patterns (exact path can change; a local file is reliable).
+  # Official Slack CDN. Confirmed working with plain curl (no special headers,
+  # no WAF block): HTTP 200, ~100 MB/s. Pattern comes from the Arch AUR
+  # slack-desktop PKGBUILD: <ver> and <ver> appear in both the path and filename.
   candidates+=(
-    "https://download.slack.com/client/linux/deb/${SLACK_VERSION}-amd64.deb"
-    "https://download.slack.com/client/linux/deb/${SLACK_VERSION}/slack-${SLACK_VERSION}-amd64.deb"
-    "https://download.slack.com/client/linux/rpm/${SLACK_VERSION}/el8/slack-${SLACK_VERSION}-1.el8.x86_64.rpm"
+    "https://downloads.slack-edge.com/desktop-releases/linux/x64/${SLACK_VERSION}/slack-desktop-${SLACK_VERSION}-amd64.deb"
   )
   for u in "${candidates[@]}"; do
     log "Trying: $u"
@@ -60,17 +60,21 @@ log "App tree: $APP_SRC"
 mkdir -p "$APP_ROOT"
 cp -a "$APP_SRC/." "$APP_ROOT/"
 
-# Capture desktop entry / icon / metainfo (paths vary by Slack build).
+# Capture desktop entry / icon (paths vary by Slack build; Slack ships no
+# .metainfo.xml). Best-effort: find_meta must never fail the build, so it always
+# returns 0 even when nothing is found (matters under `set -e` when it's the
+# last command of an `||` list).
 mkdir -p "$BUILD/meta"
 find_meta() { # $1=basename, $2=search-root
   local hit
-  hit="$(find "$2" -name "$1" 2>/dev/null | head -1)"
+  hit="$(find "$2" -name "$1" 2>/dev/null | head -1 || true)"
   [ -n "$hit" ] && cp -a "$hit" "$BUILD/meta/$1"
+  return 0
 }
-find_meta "slack.desktop"       "$BUILD/extracted"
-find_meta "slack.png"           "$BUILD/extracted/usr/share"
-[ -f "$BUILD/meta/slack.png" ]              || find_meta "slack.png" "$BUILD/extracted"
-[ -f "$BUILD/meta/slack.metainfo.xml" ]     || find_meta "slack.metainfo.xml" "$BUILD/extracted"
+find_meta "slack.desktop" "$BUILD/extracted"
+find_meta "slack.png"     "$BUILD/extracted/usr/share"
+[ -f "$BUILD/meta/slack.png" ] || find_meta "slack.png" "$BUILD/extracted"
+[ -f "$BUILD/meta/slack.metainfo.xml" ] || find_meta "slack.metainfo.xml" "$BUILD/extracted"
 
 [ -f "$APP_ROOT/slack" ]                || die "app tree has no 'slack' binary"
 [ -f "$APP_ROOT/resources/app.asar" ]   || die "app tree has no resources/app.asar"

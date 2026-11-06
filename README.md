@@ -55,11 +55,10 @@ the aarch64 variant automatically.
 
 ## Quick start
 ```sh
-# 1) Download the official Slack x86_64 .deb/.rpm in a browser.
-# 2) Configure:
+# The build downloads the official amd64 .deb from Slack's CDN automatically
+# (no browser needed) — just make sure SLACK_VERSION points at a real release.
 cp .env.example .env
-$EDITOR .env        # set SLACK_VERSION + SLACK_SOURCE_FILE
-# 3) Build:
+$EDITOR .env        # set SLACK_VERSION (and SLACK_SOURCE_FILE to pin a local file)
 ./build.sh
 ```
 
@@ -112,7 +111,10 @@ manifest/                 # com.slack.Slack.json + slack-install.sh
 - Building the Flatpak in Docker needs unprivileged user namespaces.
 
 ## Troubleshooting
-- `could not obtain the Slack package` → set `SLACK_SOURCE_FILE` (Slack CDN 403s curl).
+- `could not obtain the Slack package` → check `SLACK_VERSION` matches a real
+  release (Slack download page or the Arch AUR `slack-desktop` PKGBUILD), or pin a
+  local file via `SLACK_SOURCE_FILE`. The CDN (`downloads.slack-edge.com`) serves
+  the `.deb` to plain curl — there is no WAF/UA workaround to set up.
 - `org.gnome.Platform … not found` for aarch64 → confirm the aarch64 host + that
   `dl.flathub.org` is reachable; Flathub serves the aarch64 runtime automatically.
 - flatpak-builder hangs in Docker → enable user namespaces + `FLATPAK_DOCKER_FLAGS`.
