@@ -115,6 +115,9 @@ manifest/                 # com.slack.Slack.json + slack-install.sh
   release (Slack download page or the Arch AUR `slack-desktop` PKGBUILD), or pin a
   local file via `SLACK_SOURCE_FILE`. The CDN (`downloads.slack-edge.com`) serves
   the `.deb` to plain curl — there is no WAF/UA workaround to set up.
+- Re-downloading the Slack package on every build → it's cached in the repo's
+  `.cache/` dir (git-ignored), keyed by version; a second build for the same
+  version reuses it. Delete `.cache/` to force a fresh download.
 - `org.gnome.Platform … not found` for aarch64 → confirm the aarch64 host + that
   `dl.flathub.org` is reachable; Flathub serves the aarch64 runtime automatically.
 - flatpak-builder hangs in Docker → enable user namespaces + `FLATPAK_DOCKER_FLAGS`.

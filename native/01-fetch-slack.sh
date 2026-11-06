@@ -6,27 +6,36 @@
 #
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
-PKG=""
+# Resolve the Slack package, preferring (1) an explicitly staged local file,
+# (2) a cached download in the repo-local cache, (3) a fresh download into the
+# cache. Caching the ~100 MB package (keyed by version) means repeat builds —
+# e.g. while iterating — don't re-download it.
+CACHED="$CACHE/slack-desktop-${SLACK_VERSION}-amd64.deb"
 if [ -f "$SRC/slack-package" ]; then
   PKG="$SRC/slack-package"
-  log "Using local Slack package: $PKG"
+  log "Using staged local package: $PKG"
+elif [ -f "$CACHED" ]; then
+  PKG="$CACHED"
+  log "Using cached Slack package: $PKG (skipping download)"
 else
-  log "No local package staged ($SRC/slack-package) — attempting download"
+  log "Downloading Slack package into cache: $CACHED"
   candidates=()
   [ -n "${SLACK_SOURCE_URL:-}" ] && candidates+=("$SLACK_SOURCE_URL")
   # Official Slack CDN. Confirmed working with plain curl (no special headers,
-  # no WAF block): HTTP 200, ~100 MB/s. Pattern comes from the Arch AUR
-  # slack-desktop PKGBUILD: <ver> and <ver> appear in both the path and filename.
+  # no WAF block): HTTP 200, ~100 MB/s. Pattern from the Arch AUR slack-desktop
+  # PKGBUILD: <ver> appears in both the path and the filename.
   candidates+=(
     "https://downloads.slack-edge.com/desktop-releases/linux/x64/${SLACK_VERSION}/slack-desktop-${SLACK_VERSION}-amd64.deb"
   )
   for u in "${candidates[@]}"; do
     log "Trying: $u"
-    if curl -fL --retry 2 --max-time 300 -A "$SLACK_DOWNLOAD_UA" -o "$SRC/slack-package" "$u"; then
-      PKG="$SRC/slack-package"; break
+    if curl -fL --retry 2 --max-time 300 -A "$SLACK_DOWNLOAD_UA" -o "$CACHED" "$u"; then
+      break
     fi
+    rm -f "$CACHED"
   done
-  [ -n "$PKG" ] && [ -s "$PKG" ] || die "Could not obtain the Slack package. Download the official amd64 .deb (or x86_64 .rpm) from https://slack.com/download and set SLACK_SOURCE_FILE in .env"
+  [ -s "$CACHED" ] || die "Could not obtain the Slack package. Set SLACK_SOURCE_FILE to an official .deb/.rpm, or check SLACK_VERSION (see the Slack download page / Arch AUR slack-desktop PKGBUILD)."
+  PKG="$CACHED"
 fi
 
 sha256sum "$PKG" | awk '{print $1}' > "$BUILD/input-sha256.txt"

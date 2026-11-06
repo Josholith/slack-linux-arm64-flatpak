@@ -5,6 +5,7 @@ dist/
 
 # Docker / flatpak working dirs + caches
 .work/
+.cache/          # persistent Slack source-package cache (survives across builds)
 .npm-cache/
 .flatpak/
 .flatpak-cache/

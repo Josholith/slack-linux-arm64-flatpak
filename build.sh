@@ -43,9 +43,13 @@ REPO_ROOT="$HERE"   # build.sh lives at the repo root
 command -v docker >/dev/null 2>&1 || { echo "docker is required" >&2; exit 1; }
 
 WORK="$HERE/.work"
+CACHE_DIR="${SLACK_CACHE_DIR:-$HERE/.cache}"
 OUT_DIR="$REPO_ROOT/dist"
+# Wipe per-build artifacts; keep the persistent caches (.cache, .npm-cache,
+# .flatpak*) so repeat builds don't re-download the Slack package or the base
+# runtime. (CI runners typically clear the whole workspace, so this is moot there.)
 rm -rf "$WORK"
-mkdir -p "$WORK/src" "$WORK/out" "$WORK/flatpak-src" "$OUT_DIR"
+mkdir -p "$CACHE_DIR" "$WORK/src" "$WORK/out" "$WORK/flatpak-src" "$OUT_DIR"
 
 PLATFORM_ARGS=()
 [ -n "$BUILD_PLATFORM" ] && PLATFORM_ARGS+=(--platform "$BUILD_PLATFORM")
@@ -53,16 +57,19 @@ PLATFORM_ARGS=()
 log(){ printf '\n\033[1;36m== %s ==\033[0m\n' "$*"; }
 
 # ---- 1) secure the Slack source package ----
-log "Securing Slack source package"
+# Staged into the persistent cache (keyed by version), so a later build reuses it
+# and the ~100 MB package is downloaded at most once per version.
+CACHED_PKG="$CACHE_DIR/slack-desktop-${SLACK_VERSION}-amd64.deb"
+log "Securing Slack source package (cache: $CACHE_DIR)"
 if [ -n "${SLACK_SOURCE_FILE:-}" ] && [ -f "${SLACK_SOURCE_FILE}" ]; then
-  cp -f "$SLACK_SOURCE_FILE" "$WORK/src/slack-package"
-  echo "Using local package: $SLACK_SOURCE_FILE"
+  cp -f "$SLACK_SOURCE_FILE" "$CACHED_PKG"
+  echo "Cached local package -> $CACHED_PKG"
+elif [ -f "$CACHED_PKG" ]; then
+  echo "Reusing cached Slack package: $CACHED_PKG"
 elif [ -n "${SLACK_SOURCE_URL:-}" ]; then
-  echo "Will download from: $SLACK_SOURCE_URL"
+  echo "Will download from: $SLACK_SOURCE_URL (into $CACHE_DIR)"
 else
-  echo "No SLACK_SOURCE_FILE / SLACK_SOURCE_URL set."
-  echo "  -> the build container will attempt Slack's CDN (best effort)."
-  echo "  -> RELIABLE: set SLACK_SOURCE_FILE to an official Slack .deb/.rpm."
+  echo "No SLACK_SOURCE_FILE / SLACK_SOURCE_URL set — will download into $CACHE_DIR."
 fi
 
 # ---- 2) native stage -> aarch64 payload ----
@@ -77,7 +84,7 @@ docker run --rm "${PLATFORM_ARGS[@]}" \
   -e SLACK_SOURCE_URL="${SLACK_SOURCE_URL:-}" \
   -e SLACK_DOWNLOAD_UA="$SLACK_DOWNLOAD_UA" \
   -e NATIVE_KEYMAP_VERSION="$NATIVE_KEYMAP_VERSION" \
-  -v "$WORK/src:/work/src:ro" \
+  -v "$CACHE_DIR:/work/cache" \
   -v "$WORK/out:/work/out" \
   -v "$HERE/native:/work/scripts:ro" \
   -v "$HERE/.npm-cache:/root/.npm" \
