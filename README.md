@@ -45,6 +45,41 @@ ships, so the app is a **pure file copy — zero build modules**. Flathub serves
 `org.gnome.Platform` for aarch64 (current branch **51**). See **AGENTS.md** for the
 full list of linked libraries and the reasoning.
 
+## How this differs from Slacky
+
+[Slacky](https://github.com/andirsun/Slacky) also exists to give arm64 Linux a usable
+Slack, and it's a fine project — but it takes the **opposite** approach.
+
+| | **Slacky** | **this repo** |
+|---|---|---|
+| **What it is** | a from-scratch Electron **wrapper** of Slack's **web app** | a **repack of the official** Slack desktop app |
+| **App code** | its own TypeScript app that `loadURL`s `app.slack.com` | Slack's own, unmodified `app.asar` |
+| **Electron** | an independent, current build (Electron 42) | Slack's **exact** shipped Electron version |
+| **Native modules** | none to manage (a generic Electron app) | Slack's **proprietary** `.node` modules, rebuilt/fetched for arm64 |
+| **Runs** | Slack's **web client**, over the network | the **native desktop** client (offline-capable) |
+| **Arm64 method** | build a normal Electron app for arm64 | swap in arm64 Electron + arm64 native modules |
+| **Packaging** | AppImage / deb / rpm (electron-builder) | a self-contained **Flatpak** bundle |
+| **How it builds** | CircleCI on a native arm64 runner | Docker (native on arm64, or cross via QEMU on x86_64) |
+
+The practical consequences of that split:
+
+- **Fidelity.** This repo is the *same native desktop client* x86_64 users get —
+  native features and offline use included. Slacky runs Slack's *web* client in a
+  fresh Electron shell, so it's subject to Slack's web-side changes and needs
+  user-agent tweaks to avoid "unsupported browser" notices.
+- **The hard part lives here.** Slacky sidesteps the genuinely difficult part of an
+  arm64 repack — matching Slack's exact Electron version and producing aarch64 copies
+  of its **proprietary** native modules (e.g. `@tinyspeck/slack-desktop-utils`) —
+  simply by not using Slack's app. Producing those is the core of what this repo does.
+- **Maintenance model.** Slacky is a living client: it re-implements shell features
+  (workspace switcher, system theme, huddle windows, SSO, screen share) and tracks its
+  own releases. This repo is a deliberately thin repack — when Slack ships a new
+  version we swap the arm64 bits again; we don't add features.
+
+**In short:** Slacky is "Slack's web app in a new shell"; this repo is "the official
+Slack desktop app, rebuilt for arm64." Choose the exact native client (this), or a
+maintained wrapper (Slacky).
+
 ## Requirements (build host)
 - **Docker** on any host. An **aarch64** host (Raspberry Pi 5, Graviton, aarch64
   VPS) is **recommended** and builds natively (fastest); an **x86_64** host is
