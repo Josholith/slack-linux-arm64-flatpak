@@ -49,12 +49,16 @@ The build targets aarch64, but the Docker stages are intentionally asymmetric
 Don't "fix" this by putting `--platform` on the flatpak stage — that reintroduces the
 bwrap failure.
 
-### The flatpak stage runs as root, with full base refs
-- **Root is required**: flatpak-builder's `rofiles-fuse` helper can't resolve a bare
-  non-root UID that isn't in the sandbox's `/etc/passwd` → `fusermount3: could not
-  determine username`. So `build.sh` runs it as root (no `--user`), with the
-  user-install state on host mounts (`.flatpak-user`, …) so the aarch64 runtime is
-  cached and downloaded once.
+### The flatpak stage runs as the container's default user (no host privilege)
+- **No host/root privilege is needed.** The flatpak stage runs in a container as
+  its **default user (root — the Docker default**; we just don't set `docker
+  --user`). flatpak does a **per-user installation** (its own `--user` flag, not OS
+  privileges) under `/root/.local/share/flatpak`, host-mounted from `.flatpak-user`
+  so the aarch64 runtime is cached and downloaded once.
+- We deliberately do **not** launch the container as a **bare non-root uid**
+  (`docker --user N`): a uid absent from the image's `/etc/passwd` is the case that
+  trips flatpak's `rofiles-fuse`/`fusermount3` helper ("could not determine
+  username"), and there's no reason to go there.
 - **Base refs must be full** `id/arch/branch` (e.g. `org.gnome.Sdk/aarch64/51`) and
   **pre-installed** with `flatpak install --user`. flatpak-builder won't pull them
   itself, and flatpak **rejects the `id:branch` form**.

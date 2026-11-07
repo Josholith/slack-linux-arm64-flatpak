@@ -1,21 +1,20 @@
 #!/usr/bin/env bash
 #
-# build-flatpak.sh — runs INSIDE the flatpak Docker image (as root). Builds a
+# build-flatpak.sh — runs INSIDE the flatpak Docker image (as the container's default user). Builds a
 # self-contained `.flatpak` bundle from the staged manifest + payload tarball in
-# /work. Root is required: flatpak-builder's rofiles-fuse helper can't resolve a
-# bare non-root UID that isn't in the sandbox's /etc/passwd. The aarch64
-# runtime is cached in the (host-mounted) user-install state dir.
+# /work. flatpak does a per-user install (its own `--user` flag — not OS
+# privileges) under /root/.local/share/flatpak, which is host-mounted so the
+# aarch64 runtime is cached across builds. No host/root privilege is needed.
 #
 set -euo pipefail
 cd /work
 
-# Runs as ROOT: flatpak-builder's rofiles-fuse helper (fusermount3) cannot
-# resolve a bare non-root UID that isn't in the sandbox's /etc/passwd, so the
-# build fails for a non-root user ("could not determine username"). Root is
-# resolvable and works. User-install state lives under /root/.local/share/
-# flatpak, mounted from a host dir so the aarch64 runtime is cached across
-# builds. (The host dir ends up root-owned; a sudo-less host user can't clean
-# it, but CI runners clear the workspace, so it's a non-issue in CI.)
+# We run as the container's default user (root — the Docker default; we simply
+# don't set `docker --user`). We deliberately do NOT launch the container as a
+# bare non-root uid: a uid absent from the image's /etc/passwd is the case that
+# trips flatpak's rofiles-fuse/fusermount3 helper ("could not determine
+# username"), and there's no reason to go there. (flatpak's `--user` below
+# means "per-user install", not OS privileges.)
 export XDG_RUNTIME_DIR=/tmp/runtime-root
 export FLATPAK_USER_DATA=/root/.local/share/flatpak
 mkdir -p "$FLATPAK_USER_DATA" "$XDG_RUNTIME_DIR"

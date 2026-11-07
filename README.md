@@ -8,7 +8,7 @@ Slack package as the source of truth and Docker for a clean, reproducible build.
 The deliverable is a single file: `dist/com.slack.Slack.aarch64.flatpak`.
 
 > **Maintainers:** see **AGENTS.md** for the non-obvious implementation rationale and
-> gotchas (arch asymmetry, root requirements, flatpak-builder quirks, and the rule
+> gotchas (the intentional arch asymmetry, flatpak-builder quirks, and the rule
 > against committing build artifacts) before modifying the build.
 
 ## How it works

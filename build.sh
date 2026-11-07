@@ -137,10 +137,10 @@ done
 # bubblewrap creates the build namespaces natively — under QEMU aarch64
 # user-mode emulation, bwrap's namespace creation fails. The aarch64 app is still
 # produced because flatpak-builder runs the aarch64 runtime (from Flathub) in
-# the build sandbox. It runs as ROOT (flatpak-builder's rofiles-fuse can't
-# resolve a bare non-root UID). The aarch64 runtime is cached in the host
-# state dir, so it's downloaded once and reused.
-log "Building Flatpak bundle (image: $FLATPAK_BASE_IMAGE, as root)"
+# the build sandbox. It runs as the container's default user (root — the Docker
+# default); we simply don't set `docker --user`. The aarch64 runtime is cached in
+# the host state dir, so it's downloaded once and reused.
+log "Building Flatpak bundle (image: $FLATPAK_BASE_IMAGE)"
 docker build \
   --build-arg BASE_IMAGE="$FLATPAK_BASE_IMAGE" \
   -t slack-flatpak-builder:latest \
