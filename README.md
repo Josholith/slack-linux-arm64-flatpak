@@ -121,3 +121,26 @@ manifest/                 # com.slack.Slack.json + slack-install.sh
 - `org.gnome.Platform … not found` for aarch64 → confirm the aarch64 host + that
   `dl.flathub.org` is reachable; Flathub serves the aarch64 runtime automatically.
 - flatpak-builder hangs in Docker → enable user namespaces + `FLATPAK_DOCKER_FLAGS`.
+
+## Acknowledgments
+
+This project stands on the shoulders of a couple of open efforts:
+
+- **`hamza72x/slack-linux-arm64`** — <https://github.com/hamza72x/slack-linux-arm64>.
+  This repo was originally intended to fork from that project, but so much was
+  reworked from first principles that the result is a fresh, standalone
+  implementation rather than a fork. It is best described as a **spiritual
+  ancestor and guiding inspiration** for this work, not a direct lineage.
+- **The Arch AUR `slack-desktop` PKGBUILD** —
+  <https://aur.archlinux.org/packages/slack-desktop>. Credit for the working
+  Slack CDN download URL (`downloads.slack-edge.com`) that the fetch stage uses.
+
+## Provenance
+
+For provenance — and to encourage the use of open-weights AI — this repository
+(design, Docker pipeline, Flatpak manifest, and build scripts) was produced
+almost entirely by an **open-weights AI model running locally**: **Qwen3.8 27B**
+with a **250k-token context window**, driven by **Cline** (<https://cline.bot/>)
+as the coding-agent harness. None of this is required to use or contribute to
+the code; it is noted here for provenance and to promote awareness of
+open-weights models.
