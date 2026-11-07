@@ -35,21 +35,35 @@ REPO_ROOT="$HERE"   # build.sh lives at the repo root
 : "${FLATPAK_RUNTIME_REPO:=https://dl.flathub.org/repo/}"
 : "${NATIVE_BASE_IMAGE:=node:24.22.2-trixie}"
 : "${FLATPAK_BASE_IMAGE:=debian:13.7}"
-: "${FLATPAK_DOCKER_FLAGS:=}"
+# The flatpak stage needs user namespaces for bubblewrap; these Docker flags
+# enable that. Defaults work on a normal Docker host; override as needed.
+: "${FLATPAK_DOCKER_FLAGS:=--security-opt seccomp=unconfined --privileged --cap-add SYS_ADMIN}"
 : "${SLACK_DOWNLOAD_UA:=Mozilla/5.0 (X11; Linux aarch64)}"
 : "${NATIVE_KEYMAP_VERSION:=2.5.0}"
-: "${BUILD_PLATFORM:=}"
+# Auto-detect the Docker build platform. The native stage must run as aarch64
+# (node-gyp compiles native modules for the container's *runtime* arch), so when
+# the host is not itself aarch64 we cross-build via `--platform linux/arm64`
+# (QEMU/binfmt emulation). An explicit BUILD_PLATFORM still takes precedence.
+if [ -z "${BUILD_PLATFORM:-}" ]; then
+  case "$(uname -m)" in
+    aarch64|arm64) BUILD_PLATFORM="" ;;  # native aarch64 host: build natively
+    *) BUILD_PLATFORM="linux/arm64" ;;   # e.g. x86_64 host: cross-build aarch64
+  esac
+fi
 
 command -v docker >/dev/null 2>&1 || { echo "docker is required" >&2; exit 1; }
 
 WORK="$HERE/.work"
 CACHE_DIR="${SLACK_CACHE_DIR:-$HERE/.cache}"
 OUT_DIR="$REPO_ROOT/dist"
-# Wipe per-build artifacts; keep the persistent caches (.cache, .npm-cache,
-# .flatpak*) so repeat builds don't re-download the Slack package or the base
-# runtime. (CI runners typically clear the whole workspace, so this is moot there.)
-rm -rf "$WORK"
-mkdir -p "$CACHE_DIR" "$WORK/src" "$WORK/out" "$WORK/flatpak-src" "$OUT_DIR"
+# Best-effort clean of the per-build dir. It may hold root-owned files from a
+# prior run (the native stage runs as root in its container); a sudo-less host
+# user can't delete those, so don't abort on it. Each stage recreates/overwrites
+# what it needs, and the flatpak stage uses its own user-owned dir ($HERE/.fp).
+# Persistent caches (.cache, .npm-cache) are kept so repeat builds don't
+# re-download. (CI runners typically clear the whole workspace anyway.)
+rm -rf "$WORK" 2>/dev/null || true
+mkdir -p "$CACHE_DIR" "$WORK/out" "$OUT_DIR"
 
 PLATFORM_ARGS=()
 [ -n "$BUILD_PLATFORM" ] && PLATFORM_ARGS+=(--platform "$BUILD_PLATFORM")
@@ -95,13 +109,19 @@ PAYLOAD="$WORK/out/slack-$SLACK_VERSION-arm64.tar.xz"
 [ -f "$PAYLOAD" ] || { echo "payload not produced: $PAYLOAD" >&2; exit 1; }
 echo "Payload: $PAYLOAD ($(du -h "$PAYLOAD" | cut -f1))"
 
-# ---- 3) stage the flatpak build dir ----
-log "Staging Flatpak build dir"
-cp -f "$HERE/manifest/com.slack.Slack.json" "$WORK/flatpak-src/manifest.json"
-cp -f "$HERE/manifest/slack-install.sh"   "$WORK/flatpak-src/slack-install.sh"
-cp -f "$HERE/build-flatpak.sh"            "$WORK/flatpak-src/build-flatpak.sh"
-cp -f "$PAYLOAD"                          "$WORK/flatpak-src/slack-arm64.tar.xz"
-chmod +x "$WORK/flatpak-src/slack-install.sh" "$WORK/flatpak-src/build-flatpak.sh"
+# ---- 3) stage the flatpak build dir (fresh, USER-OWNED) ----
+# A dedicated user-owned dir (not .work, which may hold root-owned files from an
+# earlier root run that a sudo-less host user cannot remove). It holds the
+# manifest, payload, install script, and — across builds — the cached aarch64
+# runtime, so the runtime is downloaded once and reused.
+FP_DIR="$HERE/.fp"
+log "Staging Flatpak build dir ($FP_DIR)"
+mkdir -p "$FP_DIR"
+cp -f "$HERE/manifest/com.slack.Slack.json" "$FP_DIR/manifest.json"
+cp -f "$HERE/manifest/slack-install.sh"     "$FP_DIR/slack-install.sh"
+cp -f "$HERE/build-flatpak.sh"              "$FP_DIR/build-flatpak.sh"
+cp -f "$PAYLOAD"                            "$FP_DIR/slack-arm64.tar.xz"
+chmod +x "$FP_DIR/slack-install.sh" "$FP_DIR/build-flatpak.sh"
 # Render runtime/app-id into the manifest + install script.
 for f in manifest.json slack-install.sh; do
   sed -i \
@@ -109,18 +129,25 @@ for f in manifest.json slack-install.sh; do
     -e "s|@RUNTIME@|$FLATPAK_RUNTIME|g" \
     -e "s|@RUNTIME_VERSION@|$FLATPAK_RUNTIME_VERSION|g" \
     -e "s|@RUNTIME_SDK@|$FLATPAK_SDK|g" \
-    "$WORK/flatpak-src/$f"
+    "$FP_DIR/$f"
 done
 
 # ---- 4) flatpak stage -> self-contained bundle ----
-log "Building Flatpak bundle (flatpak Docker image: $FLATPAK_BASE_IMAGE)"
-docker build "${PLATFORM_ARGS[@]}" \
+# Arch rule: flatpak-builder must run on the HOST arch (no --platform) so its
+# bubblewrap creates the build namespaces natively — under QEMU aarch64
+# user-mode emulation, bwrap's namespace creation fails. The aarch64 app is still
+# produced because flatpak-builder runs the aarch64 runtime (from Flathub) in
+# the build sandbox. It runs as ROOT (flatpak-builder's rofiles-fuse can't
+# resolve a bare non-root UID). The aarch64 runtime is cached in the host
+# state dir, so it's downloaded once and reused.
+log "Building Flatpak bundle (image: $FLATPAK_BASE_IMAGE, as root)"
+docker build \
   --build-arg BASE_IMAGE="$FLATPAK_BASE_IMAGE" \
   -t slack-flatpak-builder:latest \
   -f "$HERE/Dockerfile.flatpak" "$HERE"
 
 # shellcheck disable=SC2086
-docker run --rm "${PLATFORM_ARGS[@]}" \
+docker run --rm \
   $FLATPAK_DOCKER_FLAGS \
   -e FLATPAK_ARCH="$FLATPAK_ARCH" \
   -e FLATPAK_RUNTIME="$FLATPAK_RUNTIME" \
@@ -128,23 +155,20 @@ docker run --rm "${PLATFORM_ARGS[@]}" \
   -e FLATPAK_SDK="$FLATPAK_SDK" \
   -e SLACK_APP_ID="$SLACK_APP_ID" \
   -e FLATPAK_REMOTE_URL="$FLATPAK_REMOTE_URL" \
-  -e FLATPAK_RUNTIME_REPO="$FLATPAK_RUNTIME_REPO" \
-  -v "$WORK/flatpak-src:/work" \
-  -v "$WORK/out:/out" \
+  -v "$FP_DIR:/work" \
+  -v "$HERE/.flatpak-user:/root/.local/share/flatpak" \
   -v "$HERE/.flatpak-cache:/var/cache/flatpak" \
   -v "$HERE/.flatpak:/var/lib/flatpak" \
-  -v "$HERE/.flatpak-user:/root/.local/share/flatpak" \
   slack-flatpak-builder:latest \
   bash /work/build-flatpak.sh
 
-BUNDLE="$WORK/out/$SLACK_APP_ID.$FLATPAK_ARCH.flatpak"
+BUNDLE="$FP_DIR/$SLACK_APP_ID.$FLATPAK_ARCH.flatpak"
 [ -f "$BUNDLE" ] || { echo "bundle not produced: $BUNDLE" >&2; exit 1; }
 
 # ---- 5) collect outputs ----
 log "Collecting outputs -> $OUT_DIR"
-cp -f "$PAYLOAD"  "$OUT_DIR/"
-cp -f "$BUNDLE"   "$OUT_DIR/"
-[ -f "$WORK/out/build-inputs.json" ] && cp -f "$WORK/out/build-inputs.json" "$OUT_DIR/"
+cp -f "$PAYLOAD" "$OUT_DIR/"
+cp -f "$BUNDLE"  "$OUT_DIR/"
 
 echo
 echo "Done."

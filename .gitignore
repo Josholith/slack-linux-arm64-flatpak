@@ -5,10 +5,14 @@ dist/
 
 # Docker / flatpak working dirs + caches
 .work/
-.cache/          # persistent Slack source-package cache (survives across builds)
+# persistent Slack source-package cache (survives across builds)
+.cache/
 .npm-cache/
+# flatpak stage input/output dir (manifest, payload, .flatpak)
+.fp/
 .flatpak/
 .flatpak-cache/
+# flatpak user-install state: caches the aarch64 runtime across builds
 .flatpak-user/
 
 # local configuration (contains machine-specific paths)
