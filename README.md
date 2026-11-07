@@ -46,8 +46,10 @@ ships, so the app is a **pure file copy — zero build modules**. Flathub serves
 full list of linked libraries and the reasoning.
 
 ## Requirements (build host)
-- **Docker** on a **native aarch64** host (Raspberry Pi 5, Graviton, aarch64 VPS).
-  Cross-prototype on x86_64 with `BUILD_PLATFORM=linux/arm64` (QEMU, slow).
+- **Docker** on any host. An **aarch64** host (Raspberry Pi 5, Graviton, aarch64
+  VPS) is **recommended** and builds natively (fastest); an **x86_64** host is
+  **fully supported** too — it cross-compiles aarch64 via QEMU
+  (`BUILD_PLATFORM=linux/arm64`) and just takes a little longer.
 - **Unprivileged user namespaces** enabled (flatpak-builder's bubblewrap sandbox):
   on Debian/Ubuntu `sysctl kernel.unprivileged_userns_clone=1` + the container
   seccomp/caps in `FLATPAK_DOCKER_FLAGS`.
@@ -120,7 +122,7 @@ manifest/                 # com.slack.Slack.json + slack-install.sh
 - Re-downloading the Slack package on every build → it's cached in the repo's
   `.cache/` dir (git-ignored), keyed by version; a second build for the same
   version reuses it. Delete `.cache/` to force a fresh download.
-- `org.gnome.Platform … not found` for aarch64 → confirm the aarch64 host + that
+- `org.gnome.Platform … not found` for aarch64 → confirm
   `dl.flathub.org` is reachable; Flathub serves the aarch64 runtime automatically.
 - flatpak-builder hangs in Docker → enable user namespaces + `FLATPAK_DOCKER_FLAGS`.
 

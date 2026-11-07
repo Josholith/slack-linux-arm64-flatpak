@@ -6,8 +6,9 @@
 # The output is a self-contained .flatpak bundle — the sole deliverable of this
 # project. (The arm64 payload .tar.xz is only an intermediate for flatpak-builder.)
 #
-# Run on a native aarch64 Docker host. (BUILD_PLATFORM=linux/arm64 cross-builds
-# via QEMU on an x86_64 box — slower, for prototyping only.)
+# Runs on any Docker host. An aarch64 host builds natively (fastest); an x86_64
+# host cross-builds aarch64 via QEMU (BUILD_PLATFORM=linux/arm64) — fully
+# supported, just a bit slower.
 #
 # Usage:
 #   ./build.sh                                        # reads ./.env
