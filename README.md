@@ -7,6 +7,10 @@ Slack package as the source of truth and Docker for a clean, reproducible build.
 
 The deliverable is a single file: `dist/com.slack.Slack.aarch64.flatpak`.
 
+> **Maintainers:** see **AGENTS.md** for the non-obvious implementation rationale and
+> gotchas (arch asymmetry, root requirements, flatpak-builder quirks, and the rule
+> against committing build artifacts) before modifying the build.
+
 ## How it works
 
 ```
@@ -36,12 +40,10 @@ so the host stays clean.
 | `cf-prefs`, `registry-js`, `windows-focus-assist`, `macos-notification-state` | arm64 N-API stub (Linux no-ops) |
 
 ### Base runtime: `org.gnome.Platform:51`
-Slack's Electron links GTK3, GLib, ATK/atspi, Cairo/Pango, X11, GBM, xkbcommon,
-udev, ALSA, NSS, CUPS, DBus and dlopens **libsecret** (keyring) and **libnotify**;
-its tray uses StatusNotifierItem (D-Bus). `org.gnome.Platform` ships all of these,
-so the app is a **pure file copy — zero build modules**. Flathub serves
-`org.gnome.Platform` for aarch64 (current branch **51**); the flatpak client pulls
-the aarch64 variant automatically.
+Slack's Electron links only against libraries that `org.gnome.Platform` already
+ships, so the app is a **pure file copy — zero build modules**. Flathub serves
+`org.gnome.Platform` for aarch64 (current branch **51**). See **AGENTS.md** for the
+full list of linked libraries and the reasoning.
 
 ## Requirements (build host)
 - **Docker** on a **native aarch64** host (Raspberry Pi 5, Graviton, aarch64 VPS).
@@ -95,6 +97,7 @@ See `.env.example`. Key knobs:
 
 ## Layout
 ```
+AGENTS.md                 # implementation rationale + gotchas (read before modifying)
 build.sh                  # host orchestrator (drives Docker)
 build-flatpak.sh          # flatpak-builder driver (runs in the flatpak image)
 Dockerfile.native         # node + toolchain + X11/xkbfile headers
