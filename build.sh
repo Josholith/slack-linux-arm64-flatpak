@@ -38,7 +38,6 @@ REPO_ROOT="$HERE"   # build.sh lives at the repo root
 # The flatpak stage needs user namespaces for bubblewrap; these Docker flags
 # enable that. Defaults work on a normal Docker host; override as needed.
 : "${FLATPAK_DOCKER_FLAGS:=--security-opt seccomp=unconfined --privileged --cap-add SYS_ADMIN}"
-: "${SLACK_DOWNLOAD_UA:=Mozilla/5.0 (X11; Linux aarch64)}"
 : "${NATIVE_KEYMAP_VERSION:=2.5.0}"
 # Auto-detect the Docker build platform. The native stage must run as aarch64
 # (node-gyp compiles native modules for the container's *runtime* arch), so when
@@ -96,7 +95,6 @@ docker build "${PLATFORM_ARGS[@]}" \
 docker run --rm "${PLATFORM_ARGS[@]}" \
   -e SLACK_VERSION="$SLACK_VERSION" \
   -e SLACK_SOURCE_URL="${SLACK_SOURCE_URL:-}" \
-  -e SLACK_DOWNLOAD_UA="$SLACK_DOWNLOAD_UA" \
   -e NATIVE_KEYMAP_VERSION="$NATIVE_KEYMAP_VERSION" \
   -v "$CACHE_DIR:/work/cache" \
   -v "$WORK/out:/work/out" \

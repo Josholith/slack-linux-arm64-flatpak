@@ -116,8 +116,7 @@ manifest/                 # com.slack.Slack.json + slack-install.sh
 ## Troubleshooting
 - `could not obtain the Slack package` → check `SLACK_VERSION` matches a real
   release (Slack download page or the Arch AUR `slack-desktop` PKGBUILD), or pin a
-  local file via `SLACK_SOURCE_FILE`. The CDN (`downloads.slack-edge.com`) serves
-  the `.deb` to plain curl — there is no WAF/UA workaround to set up.
+  local file via `SLACK_SOURCE_FILE`.
 - Re-downloading the Slack package on every build → it's cached in the repo's
   `.cache/` dir (git-ignored), keyed by version; a second build for the same
   version reuses it. Delete `.cache/` to force a fresh download.

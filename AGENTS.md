@@ -102,10 +102,9 @@ Slack release.
   (`native/stubs/empty_napi_module.c`). If a **new** similar tiny module appears,
   inspect its exported symbols — if it's a no-op, add it to the stub list.
 
-### Slack CDN: it's the URL, not a WAF
-The `.deb` downloads with **plain curl** — there's no WAF/UA wall. The original "403"
-was a wrong host: use `downloads.slack-edge.com` (per the AUR `slack-desktop`
-PKGBUILD), not `download.slack.com`. `SLACK_DOWNLOAD_UA` is vestigial.
+### Slack CDN URL
+The Slack `.deb` downloads from `downloads.slack-edge.com` (host sourced from the
+AUR `slack-desktop` PKGBUILD).
 
 ### `.gitignore` gotcha (bit us once)
 A `#` **mid-line** is part of the pattern, not a comment — `.cache/  # hi` does **not**

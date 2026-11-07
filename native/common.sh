@@ -20,7 +20,6 @@ export OUT="$WORK/out"
 export CACHE="${SLACK_CACHE_DIR:-$WORK/cache}"
 export APP_ROOT="$BUILD/app"
 export SCRIPTS
-export SLACK_DOWNLOAD_UA="${SLACK_DOWNLOAD_UA:-Mozilla/5.0 (X11; Linux aarch64)}"
 
 mkdir -p "$BUILD" "$OUT" "$CACHE"
 

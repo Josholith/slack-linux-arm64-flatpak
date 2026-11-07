@@ -21,15 +21,14 @@ else
   log "Downloading Slack package into cache: $CACHED"
   candidates=()
   [ -n "${SLACK_SOURCE_URL:-}" ] && candidates+=("$SLACK_SOURCE_URL")
-  # Official Slack CDN. Confirmed working with plain curl (no special headers,
-  # no WAF block): HTTP 200, ~100 MB/s. Pattern from the Arch AUR slack-desktop
-  # PKGBUILD: <ver> appears in both the path and the filename.
+  # Official Slack CDN. <ver> appears in both the path and the filename (pattern
+  # from the Arch AUR slack-desktop PKGBUILD).
   candidates+=(
     "https://downloads.slack-edge.com/desktop-releases/linux/x64/${SLACK_VERSION}/slack-desktop-${SLACK_VERSION}-amd64.deb"
   )
   for u in "${candidates[@]}"; do
     log "Trying: $u"
-    if curl -fL --retry 2 --max-time 300 -A "$SLACK_DOWNLOAD_UA" -o "$CACHED" "$u"; then
+    if curl -fL --retry 2 --max-time 300 -o "$CACHED" "$u"; then
       break
     fi
     rm -f "$CACHED"
